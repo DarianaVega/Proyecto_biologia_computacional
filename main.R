@@ -25,6 +25,14 @@ ToARN = function(input) {
   return (newARN)
 }
 
+df = data.frame(
+  Mutation = character(),
+  Codon = character(),
+  Amino = character(),
+  Position = integer(),
+  Gene = character()
+)
+
 fRef = read.fasta("wuhan_sequence.txt")
 str(fRef)
 
@@ -32,6 +40,8 @@ fMexa = read.fasta("sequence_5.fasta")
 str(fMexa)
 
 mutaciones_reg = c()
+
+nobs = 1
 
 for (i in seq(1,length(fRef),1)){
   anotaciones = attr(fRef[[i]], "Annot") 
@@ -87,7 +97,12 @@ for (i in seq(1,length(fRef),1)){
             if (!mutacion %in% mutaciones_reg) {
               cat("\t", mutacion, "\n")
               mutaciones_reg = c(mutaciones_reg, mutacion)
-            }  
+            }
+            if (!is.na(trad[codonMex]) && trad[codonOri]!=trad[codonMex]){
+              obs = list(muta,codonChange,aminoChange,geneName)
+              df[nobs,] = obs 
+              nobs = nobs+1
+            }
           }
         }
       }
@@ -95,17 +110,9 @@ for (i in seq(1,length(fRef),1)){
   }
 }
 
-df = data.frame(
-  Mutation = character(),
-  Codon = character(),
-  Amino = character(),
-  Position = integer(),
-  Gene = character()
-)
 
-obs = list(muta, codonChange, aminoChange, geneName); 
-df[10,] = obs
-df
+head(df)
+nrow(df)
 
 library(dplyr)
 library(ggplot2)
@@ -133,7 +140,10 @@ dfgraph = filter(
   Cuenta>=1
 )
 
-dfgraph
+dfgraph = dfgraph[order(-dfgraph$Cuenta), ]
+dfgraph = dfgraph[1:20, ]
+head(dfgraph)
+nrow(dfgraph)
 
 p2 = ggplot(dfgraph)
 p2 = p2 + aes(x=Amino, y=Cuenta, fill=Amino, label=Cuenta)

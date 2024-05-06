@@ -1,0 +1,13 @@
+---
+title: "Analisis Filogenetico del Virus SARS-CoV-2"
+author: "Roberto Castro Gómez (A01425602), Dariana Vega Morales (A01425755)"
+output: html_notebook
+
+---
+
+
+
+El COVID-19, un virus que empezó a expandirse a principios del 2019, generando grandes cambios, dolor y muerte para toda la sociedad a nivel mundial, aunque sus números hayan bajado y se crea que ya no hay tanta probabilidad de muerte en la actualidad sigue propagándose y causando muertes, hoy en día hay un total de 695.781.740 casos y 6.919.573 muertes a nivel global.
+Este virus empezó su propagación global con una variante llamada linaje B.1, aunque en su momento fue la más importante y mortal, estas se siguieron desarrollando cada vez más letales y contagiosas
+En este proyecto se estará trabajando con una de las variantes del COVID-19, se centrará en cómo esta se fue desarrollando en una región específica del mundo, la cual será Oceanía.
+Al estar trabajando sobre una región fija del mundo, optamos que no es lo mejor trabajar sobre las secuencias de una variante en particular ni en un solo gen, si no dar algo más general que otorgue una mejor información a nuestra búsqueda, haciendo un análisis comparativo entre las variantes que están en la zona para identificar un patrón del virus en el lugar en general.
