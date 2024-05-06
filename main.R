@@ -1,4 +1,6 @@
 library(seqinr)
+library(dplyr)
+library(ggplot2)
 
 
 trad =    c(UUU="F", UUC="F", UUA="L", UUG="L",
@@ -111,11 +113,10 @@ for (i in seq(1,length(fRef),1)){
 }
 
 
-head(df)
-nrow(df)
 
-library(dplyr)
-library(ggplot2)
+
+nrow(df)
+head(df)
 
 p = ggplot(df)
 p = p + aes(x=Mutation, fill=Mutation, label=after_stat(count))
@@ -123,7 +124,6 @@ p = p + ggtitle("Mutaciones de sustitución")
 p = p + labs(x="Mutation", y="Count", fill="Count")
 p = p + geom_bar(stat = "count")
 p = p + geom_text(stat = "count", vjust=1.5)
-p = p + facet_grid(~Gene)
 p
 
 dfgraph = filter(
@@ -137,7 +137,7 @@ dfgraph = filter(
     Gene = first(Gene),
     Cuenta = n()
   ),
-  Cuenta>=1
+  Cuenta>=16
 )
 
 dfgraph = dfgraph[order(-dfgraph$Cuenta), ]
