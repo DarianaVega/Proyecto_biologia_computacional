@@ -1,13 +1,515 @@
 ---
 title: "Analisis Filogenetico del Virus SARS-CoV-2"
-author: "Roberto Castro Gómez (A01425602), Dariana Vega Morales (A01425755)"
-output: html_notebook
-
+author: "Roberto Castro Gómez A01425602 Dariana Vega Morales A01425755"
+output:
+  html_document:
+    df_print: paged
 ---
+```{r setup, include FALSE, echo=FALSE}
+knitr::opts_chunk$set(warning = FALSE)
+```
+
+
+### Hipótesis 
+Dado el tipo de flora y fauna que se encuentra en Oceanía, queremos determinar si las variantes de la región son distintas a las del resto del mundo. Se sospecha que podría existir una divergencia entre las variantes de Oceanía, la de Wuhan y alguna otra variante del hemisferio opuesto; en este caso, consideramos una variante de Kansas.
+
+### Procesamiento de datos 
+Para definir los cambios de aminoácidos que podrían encontrarse, se genera una tabla que indica a qué tipo de aminoácido corresponde cada codón encontrado.
+```{r inicio, message=FALSE}
+library(seqinr)
+library(dplyr)
+library(ggplot2)
+
+
+trad =    c(UUU="F", UUC="F", UUA="L", UUG="L",
+            UCU="S", UCC="S", UCA="S", UCG="S",
+            UAU="Y", UAC="Y", UAA="STOP", UAG="STOP",
+            UGU="C", UGC="C", UGA="STOP", UGG="W",
+            CUU="L", CUC="L", CUA="L", CUG="L",
+            CCU="P", CCC="P", CCA="P", CCG="P",
+            CAU="H", CAC="H", CAA="Q", CAG="Q",
+            CGU="R", CGC="R", CGA="R", CGG="R",
+            AUU="I", AUC="I", AUA="I", AUG="M",
+            ACU="T", ACC="T", ACA="T", ACG="T",
+            AAU="N", AAC="N", AAA="K", AAG="K",
+            AGU="S", AGC="S", AGA="R", AGG="R",
+            GUU="V", GUC="V", GUA="V", GUG="V",
+            GCU="A", GCC="A", GCA="A", GCG="A",
+            GAU="D", GAC="D", GAA="E", GAG="E",
+            GGU="G", GGC="G", GGA="G", GGG="G")
+
+ToARN = function(input) {
+  newARN = as.vector(input)
+  newARN[which(newARN=="t")] = "u"
+  newARN = toupper(newARN)
+  return (newARN)
+}
+```
+
+
+Después, se crea la estructura de almacenamiento de los datos que se van analizando para mantener un control sobre las gráficas.
+```{r data-frame}
+df = data.frame(
+  Mutation = character(),
+  Codon = character(),
+  Amino = character(),
+  Position = integer(),
+  Gene = character()
+)
+```
 
 
 
-El COVID-19, un virus que empezó a expandirse a principios del 2019, generando grandes cambios, dolor y muerte para toda la sociedad a nivel mundial, aunque sus números hayan bajado y se crea que ya no hay tanta probabilidad de muerte en la actualidad sigue propagándose y causando muertes, hoy en día hay un total de 695.781.740 casos y 6.919.573 muertes a nivel global.
-Este virus empezó su propagación global con una variante llamada linaje B.1, aunque en su momento fue la más importante y mortal, estas se siguieron desarrollando cada vez más letales y contagiosas
-En este proyecto se estará trabajando con una de las variantes del COVID-19, se centrará en cómo esta se fue desarrollando en una región específica del mundo, la cual será Oceanía.
-Al estar trabajando sobre una región fija del mundo, optamos que no es lo mejor trabajar sobre las secuencias de una variante en particular ni en un solo gen, si no dar algo más general que otorgue una mejor información a nuestra búsqueda, haciendo un análisis comparativo entre las variantes que están en la zona para identificar un patrón del virus en el lugar en general.
+A continuación se procede a la lectura de las cadenas de ARN que serán comparadas. En este estudio, estamos comparando la estructura de la variante original de Wuhan con 5 variantes diferentes encontradas en la región de Oceanía. Las cadenas de ARN fueron obtenidas del sitio web del National Center for Biotechnology Information **(NCBI)**, donde se filtraron los datos específicamente para obtener información sobre el **SARS-CoV-2** donde posteriormente, se realizaron filtros adicionales para identificar las variantes encontradas en Oceanía.
+```{r lectura}
+fRef = read.fasta("wuhan_sequence.txt")
+
+fMexa = read.fasta("sequence_5.fasta")
+
+mutaciones_reg = c()
+
+nobs = 1
+```
+
+
+Posteriormente, se comienzan a realizar las comparaciones entre las diversas cadenas que tienen una longitud similar y para aquellas cadenas que presentan algún cambio en la longitud que puede significar una mutación tanto de inserción como de deleción, se le aplica el algoritmo de **Needleman-Wunsch** para poder calcular las posiciones donde es más probable que se encuentren los valores faltantes en cualquiera de las 2 cadenas.
+```{r algoritmo}
+for (i in seq(1,length(fRef),1)){
+  anotaciones = attr(fRef[[i]], "Annot") 
+  atributos = unlist(strsplit(anotaciones,"\\[|\\]|:|=|\\.|\\(")); 
+  geneName = atributos[which(atributos=="gene")+1] 
+  genRef = ToARN( fRef[[i]] )
+  for (j in seq(i, length(fMexa),12)) {
+    genMex = ToARN( fMexa[[i]] )  
+    if (length(genRef) == length(genMex)){
+      dif = which(genRef != genMex)
+      if (length(dif) > 0){
+        for (x in dif){
+          if (genRef[x] != "" && genMex[x] !="") {
+            muta = paste(genRef[x],"to",genMex[x], sep="") 
+            inicioCodon = x - (x-1)%%3 
+            numCodon = as.integer((x-1)/3+1) 
+            codonOri = paste(genRef[inicioCodon], genRef[inicioCodon+1], genRef[inicioCodon+2],sep="")
+            codonMex = paste(genMex[inicioCodon], genMex[inicioCodon+1], genMex[inicioCodon+2],sep="")
+            codonChange = paste(codonOri,"to",codonMex, sep="")
+            aminoChange = paste(trad[codonOri],numCodon,trad[codonMex], sep="")
+            mutacion = paste(muta, codonChange, aminoChange, geneName, sep=" ")
+            if (!mutacion %in% mutaciones_reg) {
+              mutaciones_reg = c(mutaciones_reg, mutacion)
+            }
+          }
+        }
+      }
+    }else{
+      genRefLength = length(genRef)
+      genMexLength = length(genMex)
+      
+      if (genRefLength < genMexLength) {
+        genRef = c(genRef, rep("", genMexLength - genRefLength))
+      } else {
+        genMex = c(genMex, rep("", genRefLength - genMexLength))
+      }
+      dif = which(genRef != genMex)
+      if (length(dif) > 0) {
+        for (x in dif) {
+          if (genRef[x] != "" && genMex[x] !="") {
+            muta = paste(genRef[x], "to", genMex[x], sep="") 
+            inicioCodon = x - (x - 1) %% 3 
+            numCodon = as.integer((x - 1) / 3 + 1) 
+            codonOri = paste(genRef[inicioCodon], genRef[inicioCodon + 1], genRef[inicioCodon + 2], sep="")
+            codonMex = paste(genMex[inicioCodon], genMex[inicioCodon + 1], genMex[inicioCodon + 2], sep="")
+            codonChange = paste(codonOri, "to", codonMex, sep="")
+            aminoChange = paste(trad[codonOri], numCodon, trad[codonMex], sep="")
+            mutacion = paste(muta, codonChange, aminoChange, geneName, sep=" ")
+            if (!mutacion %in% mutaciones_reg) {
+              mutaciones_reg = c(mutaciones_reg, mutacion)
+            }
+            if (!is.na(trad[codonMex]) && trad[codonOri]!=trad[codonMex]){
+              obs = list(muta,codonChange,aminoChange,geneName)
+              df[nobs,] = obs 
+              nobs = nobs+1
+            }
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+
+Una vez analizadas las cadenas de las diversas variantes, se generan las gráficas basandose en la estructura previamente mencionada. En este caso primero se observa la gráfica que muestra los cambios encontrados con mayor frecuencia en los diversos codones.
+
+    p = ggplot(df)
+    p = p + aes(x=Mutation, fill=Mutation, label=after_stat(count))
+    p = p + ggtitle("Sustitución Wuhan-Oceanía")
+    p = p + labs(x="Mutation", y="Count", fill="Count")
+    p = p + geom_bar(stat = "count")
+    p = p + geom_text(stat = "count", vjust=1.5)
+    p
+
+Para la segunda gráfica se van a mostrar los cambios de los aminoácidos que se presentan con mayor frecuencia, se analizan los cambios de los aminoácidos en la estructura previa y se genera un filtro para unicamente mostrar aquellos cambios que aparezcan más de x veces con la finalidad de eliminar datos repetitivos.
+
+    dfgraph = filter(
+      summarise(
+        select(
+          group_by(df, Amino),
+          Mutation:Gene
+        ),
+        Mutation = first(Mutation),
+        Codon = first(Codon),
+        Gene = first(Gene),
+        Cuenta = n()
+      ),
+      Cuenta>=16
+    )
+    
+    dfgraph = dfgraph[order(-dfgraph$Cuenta), ]
+    dfgraph = dfgraph[1:20, ]
+    #head(dfgraph)
+    #nrow(dfgraph)
+    
+    p2 = ggplot(dfgraph)
+    p2 = p2 + aes(x=Amino, y=Cuenta, fill=Amino, label=Cuenta)
+    p2 = p2 + ggtitle("Aminoácidos Wuhan-Oceanía")
+    p2 = p2 + labs(x="Amino", y="Frecuencia", fill="Frecuencia")
+    p2 = p2 + geom_bar(stat = "identity")
+    p2 = p2 + geom_text(stat = "identity", vjust=1.5)
+    p2
+
+
+```{r graficas 1, echo=FALSE}
+p = ggplot(df)
+p = p + aes(x=Mutation, fill=Mutation, label=after_stat(count))
+p = p + ggtitle("Sustitución Wuhan-Oceanía")
+p = p + labs(x="Mutation", y="Count", fill="Count")
+p = p + geom_bar(stat = "count")
+p = p + geom_text(stat = "count", vjust=1.5)
+p
+
+dfgraph = filter(
+  summarise(
+    select(
+      group_by(df, Amino),
+      Mutation:Gene
+    ),
+    Mutation = first(Mutation),
+    Codon = first(Codon),
+    Gene = first(Gene),
+    Cuenta = n()
+  ),
+  Cuenta>=16
+)
+
+dfgraph = dfgraph[order(-dfgraph$Cuenta), ]
+dfgraph = dfgraph[1:20, ]
+
+p2 = ggplot(dfgraph)
+p2 = p2 + aes(x=Amino, y=Cuenta, fill=Amino, label=Cuenta)
+p2 = p2 + ggtitle("Aminoácidos Wuhan-Oceanía")
+p2 = p2 + labs(x="Amino", y="Frecuencia", fill="Frecuencia")
+p2 = p2 + geom_bar(stat = "identity")
+p2 = p2 + geom_text(stat = "identity", vjust=1.5)
+p2
+```
+
+Las gráficas mostradas previamente demuestran la comparativa entre la variante original de Wuhan y 5 variantes diferentes identificadas en Oceanía, siendo el pangolin de las variantes B.1.1.136, mientras que para la cadena de Wuhan unicamente es una B, esto se utiliza para poder clasificar el tipo de variante que se está investigando, a continuación se pueden observar las gráficas comparativas entre una variante encontrada en Kansas PP301014 con las mismas 5 variantes encontradas en Oceanía. Esto con la finalidad de poder observar algún otro tipo de cambio entre las variantes de diferentes regiones.
+
+```{r graficas 3, echo=FALSE}
+library(seqinr)
+library(dplyr)
+library(ggplot2)
+
+
+trad =    c(UUU="F", UUC="F", UUA="L", UUG="L",
+            UCU="S", UCC="S", UCA="S", UCG="S",
+            UAU="Y", UAC="Y", UAA="STOP", UAG="STOP",
+            UGU="C", UGC="C", UGA="STOP", UGG="W",
+            CUU="L", CUC="L", CUA="L", CUG="L",
+            CCU="P", CCC="P", CCA="P", CCG="P",
+            CAU="H", CAC="H", CAA="Q", CAG="Q",
+            CGU="R", CGC="R", CGA="R", CGG="R",
+            AUU="I", AUC="I", AUA="I", AUG="M",
+            ACU="T", ACC="T", ACA="T", ACG="T",
+            AAU="N", AAC="N", AAA="K", AAG="K",
+            AGU="S", AGC="S", AGA="R", AGG="R",
+            GUU="V", GUC="V", GUA="V", GUG="V",
+            GCU="A", GCC="A", GCA="A", GCG="A",
+            GAU="D", GAC="D", GAA="E", GAG="E",
+            GGU="G", GGC="G", GGA="G", GGG="G")
+
+ToARN = function(input) {
+  newARN = as.vector(input)
+  newARN[which(newARN=="t")] = "u"
+  newARN = toupper(newARN)
+  return (newARN)
+}
+
+df = data.frame(
+  Mutation = character(),
+  Codon = character(),
+  Amino = character(),
+  Position = integer(),
+  Gene = character()
+)
+
+fRef = read.fasta("Kansas_sequence.txt")
+
+fMexa = read.fasta("sequence_5.fasta")
+
+mutaciones_reg = c()
+
+nobs = 1
+
+for (i in seq(1,length(fRef),1)){
+  anotaciones = attr(fRef[[i]], "Annot") 
+  atributos = unlist(strsplit(anotaciones,"\\[|\\]|:|=|\\.|\\(")); 
+  geneName = atributos[which(atributos=="gene")+1] 
+  genRef = ToARN( fRef[[i]] )
+  for (j in seq(i, length(fMexa),12)) {
+    genMex = ToARN( fMexa[[i]] )  
+    if (length(genRef) == length(genMex)){
+      dif = which(genRef != genMex)
+      if (length(dif) > 0){
+        for (x in dif){
+          if (genRef[x] != "" && genMex[x] !="") {
+            muta = paste(genRef[x],"to",genMex[x], sep="") 
+            inicioCodon = x - (x-1)%%3 
+            numCodon = as.integer((x-1)/3+1) 
+            codonOri = paste(genRef[inicioCodon], genRef[inicioCodon+1], genRef[inicioCodon+2],sep="")
+            codonMex = paste(genMex[inicioCodon], genMex[inicioCodon+1], genMex[inicioCodon+2],sep="")
+            codonChange = paste(codonOri,"to",codonMex, sep="")
+            aminoChange = paste(trad[codonOri],numCodon,trad[codonMex], sep="")
+            mutacion = paste(muta, codonChange, aminoChange, geneName, sep=" ")
+            if (!mutacion %in% mutaciones_reg) {
+              mutaciones_reg = c(mutaciones_reg, mutacion)
+            }
+          }
+        }
+      }
+    }else{
+      genRefLength = length(genRef)
+      genMexLength = length(genMex)
+      
+      if (genRefLength < genMexLength) {
+        genRef = c(genRef, rep("", genMexLength - genRefLength))
+      } else {
+        genMex = c(genMex, rep("", genRefLength - genMexLength))
+      }
+      dif = which(genRef != genMex)
+      if (length(dif) > 0) {
+        for (x in dif) {
+          if (genRef[x] != "" && genMex[x] !="") {
+            muta = paste(genRef[x], "to", genMex[x], sep="") 
+            inicioCodon = x - (x - 1) %% 3 
+            numCodon = as.integer((x - 1) / 3 + 1) 
+            codonOri = paste(genRef[inicioCodon], genRef[inicioCodon + 1], genRef[inicioCodon + 2], sep="")
+            codonMex = paste(genMex[inicioCodon], genMex[inicioCodon + 1], genMex[inicioCodon + 2], sep="")
+            codonChange = paste(codonOri, "to", codonMex, sep="")
+            aminoChange = paste(trad[codonOri], numCodon, trad[codonMex], sep="")
+            mutacion = paste(muta, codonChange, aminoChange, geneName, sep=" ")
+            if (!mutacion %in% mutaciones_reg) {
+              mutaciones_reg = c(mutaciones_reg, mutacion)
+            }
+            if (!is.na(trad[codonMex]) && trad[codonOri]!=trad[codonMex]){
+              obs = list(muta,codonChange,aminoChange,geneName)
+              df[nobs,] = obs 
+              nobs = nobs+1
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+p = ggplot(df)
+p = p + aes(x=Mutation, fill=Mutation, label=after_stat(count))
+p = p + ggtitle("Sustitución Kansas-Oceanía")
+p = p + labs(x="Mutation", y="Count", fill="Count")
+p = p + geom_bar(stat = "count")
+p = p + geom_text(stat = "count", vjust=1.5)
+p
+
+dfgraph = filter(
+  summarise(
+    select(
+      group_by(df, Amino),
+      Mutation:Gene
+    ),
+    Mutation = first(Mutation),
+    Codon = first(Codon),
+    Gene = first(Gene),
+    Cuenta = n()
+  ),
+  Cuenta>=16
+)
+
+dfgraph = dfgraph[order(-dfgraph$Cuenta), ]
+dfgraph = dfgraph[1:20, ]
+
+p2 = ggplot(dfgraph)
+p2 = p2 + aes(x=Amino, y=Cuenta, fill=Amino, label=Cuenta)
+p2 = p2 + ggtitle("Aminoácidos Kansas-Oceanía")
+p2 = p2 + labs(x="Amino", y="Frecuencia", fill="Frecuencia")
+p2 = p2 + geom_bar(stat = "identity")
+p2 = p2 + geom_text(stat = "identity", vjust=1.5)
+p2
+
+```
+
+Las siguientes gráficas muestran la comparación que se realiza entre las cadenas de las variantes de Wuhan y Kansas para poder identificar con mayor facilidad las diferencias en los aminoácidos que existan en la variante de Oceanía que hacen que estas variantes no lleguen a otras partes del mundo, o en su defecto se originen únicamente en esa región.
+```{r graficas 2, echo=FALSE}
+library(seqinr)
+library(dplyr)
+library(ggplot2)
+
+
+trad =    c(UUU="F", UUC="F", UUA="L", UUG="L",
+            UCU="S", UCC="S", UCA="S", UCG="S",
+            UAU="Y", UAC="Y", UAA="STOP", UAG="STOP",
+            UGU="C", UGC="C", UGA="STOP", UGG="W",
+            CUU="L", CUC="L", CUA="L", CUG="L",
+            CCU="P", CCC="P", CCA="P", CCG="P",
+            CAU="H", CAC="H", CAA="Q", CAG="Q",
+            CGU="R", CGC="R", CGA="R", CGG="R",
+            AUU="I", AUC="I", AUA="I", AUG="M",
+            ACU="T", ACC="T", ACA="T", ACG="T",
+            AAU="N", AAC="N", AAA="K", AAG="K",
+            AGU="S", AGC="S", AGA="R", AGG="R",
+            GUU="V", GUC="V", GUA="V", GUG="V",
+            GCU="A", GCC="A", GCA="A", GCG="A",
+            GAU="D", GAC="D", GAA="E", GAG="E",
+            GGU="G", GGC="G", GGA="G", GGG="G")
+
+ToARN = function(input) {
+  newARN = as.vector(input)
+  newARN[which(newARN=="t")] = "u"
+  newARN = toupper(newARN)
+  return (newARN)
+}
+
+df = data.frame(
+  Mutation = character(),
+  Codon = character(),
+  Amino = character(),
+  Position = integer(),
+  Gene = character()
+)
+
+fRef = read.fasta("Kansas_sequence.txt")
+
+fMexa = read.fasta("Wuhan_sequence.txt")
+
+mutaciones_reg = c()
+
+nobs = 1
+
+for (i in seq(1,length(fRef),1)){
+  anotaciones = attr(fRef[[i]], "Annot") 
+  atributos = unlist(strsplit(anotaciones,"\\[|\\]|:|=|\\.|\\(")); 
+  geneName = atributos[which(atributos=="gene")+1] 
+  genRef = ToARN( fRef[[i]] )
+  for (j in seq(i, length(fMexa),12)) {
+    genMex = ToARN( fMexa[[i]] )  
+    if (length(genRef) == length(genMex)){
+      dif = which(genRef != genMex)
+      if (length(dif) > 0){
+        for (x in dif){
+          if (genRef[x] != "" && genMex[x] !="") {
+            muta = paste(genRef[x],"to",genMex[x], sep="") 
+            inicioCodon = x - (x-1)%%3 
+            numCodon = as.integer((x-1)/3+1) 
+            codonOri = paste(genRef[inicioCodon], genRef[inicioCodon+1], genRef[inicioCodon+2],sep="")
+            codonMex = paste(genMex[inicioCodon], genMex[inicioCodon+1], genMex[inicioCodon+2],sep="")
+            codonChange = paste(codonOri,"to",codonMex, sep="")
+            aminoChange = paste(trad[codonOri],numCodon,trad[codonMex], sep="")
+            mutacion = paste(muta, codonChange, aminoChange, geneName, sep=" ")
+            if (!mutacion %in% mutaciones_reg) {
+              mutaciones_reg = c(mutaciones_reg, mutacion)
+            }
+          }
+        }
+      }
+    }else{
+      genRefLength = length(genRef)
+      genMexLength = length(genMex)
+      
+      if (genRefLength < genMexLength) {
+        genRef = c(genRef, rep("", genMexLength - genRefLength))
+      } else {
+        genMex = c(genMex, rep("", genRefLength - genMexLength))
+      }
+      dif = which(genRef != genMex)
+      if (length(dif) > 0) {
+        for (x in dif) {
+          if (genRef[x] != "" && genMex[x] !="") {
+            muta = paste(genRef[x], "to", genMex[x], sep="") 
+            inicioCodon = x - (x - 1) %% 3 
+            numCodon = as.integer((x - 1) / 3 + 1) 
+            codonOri = paste(genRef[inicioCodon], genRef[inicioCodon + 1], genRef[inicioCodon + 2], sep="")
+            codonMex = paste(genMex[inicioCodon], genMex[inicioCodon + 1], genMex[inicioCodon + 2], sep="")
+            codonChange = paste(codonOri, "to", codonMex, sep="")
+            aminoChange = paste(trad[codonOri], numCodon, trad[codonMex], sep="")
+            mutacion = paste(muta, codonChange, aminoChange, geneName, sep=" ")
+            if (!mutacion %in% mutaciones_reg) {
+              mutaciones_reg = c(mutaciones_reg, mutacion)
+            }
+            if (!is.na(trad[codonMex]) && !is.na(trad[codonOri]) && trad[codonOri] != trad[codonMex]) {
+              obs = list(muta, codonChange, aminoChange, geneName)
+              df[nobs,] = obs 
+              nobs = nobs + 1
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+p = ggplot(df)
+p = p + aes(x=Mutation, fill=Mutation, label=after_stat(count))
+p = p + ggtitle("Sustitución Kansas-Wuhan")
+p = p + labs(x="Mutation", y="Count", fill="Count")
+p = p + geom_bar(stat = "count")
+p = p + geom_text(stat = "count", vjust=1.5)
+p
+
+dfgraph = filter(
+  summarise(
+    select(
+      group_by(df, Amino),
+      Mutation:Gene
+    ),
+    Mutation = first(Mutation),
+    Codon = first(Codon),
+    Gene = first(Gene),
+    Cuenta = n()
+  ),
+  Cuenta>=4
+)
+
+dfgraph = dfgraph[order(-dfgraph$Cuenta), ]
+dfgraph = dfgraph[1:20, ]
+
+p2 = ggplot(dfgraph)
+p2 = p2 + aes(x=Amino, y=Cuenta, fill=Amino, label=Cuenta)
+p2 = p2 + ggtitle("Aminoácidos Kansas-Wuhan")
+p2 = p2 + labs(x="Amino", y="Frecuencia", fill="Frecuencia")
+p2 = p2 + geom_bar(stat = "identity")
+p2 = p2 + geom_text(stat = "identity", vjust=1.5)
+p2
+
+```
+
+
+### Conclusiones
+
+
+Analizando las gráficas comparativas Wuhan-Oceanía, Kansas-Oceanía y Wuhan-Kansas, podemos identificar que sí existe un cambio entre las variantes del virus. Mediante esta comparación, podemos observar que las variantes de Oceanía tienden a contener principalmente los aminoácidos K y S, los cuales corresponden a la Lisina (K) y la Serina (S).
+
+La lisina tiene como objetivo principal la producción de anticuerpos, lo que podría aplicarse en el virus para la inhibición de los anticuerpos del huésped, o para generar resistencia a los sistemas de defensa del mismo. El aminoácido K también es crucial para la conversión de ácidos en energía, lo que es fundamental para la multiplicación del virus.
+
+Por otro lado, la Serina desempeña una función importante en la síntesis de otros aminoácidos y en la producción de energía. Dada su diversidad en estas regiones, esto podría ayudar en la propagación del virus. La Serina también juega un papel en la regulación de las proteínas y en la transcripción y traducción de las diversas cadenas de ARN y ADN del virus.
+
+Basándonos en este análisis, podemos confirmar que existe una divergencia notoria en cuanto a los aminoácidos que se generan en cada una de las diferentes variantes del COVID que fueron encontradas en la región de Oceanía. Esto podría deberse principalmente a la capacidad del virus para adaptarse con facilidad y continuar su propagación. Dado que Oceanía es una región muy diversa en cuanto a clima, flora y fauna, el virus tuvo que ajustar sus aminoácidos para poder sobrevivir en esta región y seguir propagándose.
